@@ -1,0 +1,42 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Native build artifacts
+*.o
+*.so
+*.a
+*.dylib
+*.dll
+*.exe
+
+# Python packaging and extension builds
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Test, benchmark, and generated results
+result/
+results/
+eval/result/
+benchmark/result/
+tests/python/profile/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# Local editor and agent state
+.vscode/
+.idea/
+.codex
+.codex/
+
+# Environment files
+.env
+.env.*
+!.env.example
