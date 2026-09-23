@@ -81,6 +81,7 @@ architecture, update the `-gencode` settings in `Makefile`, `setup.py`, and
 From the repository root directory, build and install the main offload runtime:
 
 ```bash
+bash setup.sh
 make pyext
 ```
 
@@ -95,6 +96,30 @@ The root `make pyext` target first builds `runtime.o` and then installs the
 editable PyTorch extension package. The `split_attention` package is installed
 separately because it provides a dedicated attention kernel and Python
 registration interface.
+
+## Basic Test
+
+To verify the installation, run from the repository root:
+
+```bash
+python test_install.py
+```
+
+The script checks that PyTorch can see a CUDA GPU and imports both compiled
+extensions (`offload.runtime` and `opt_attention._C`). On success it prints
+something like the following (versions, GPU name, and paths will differ):
+
+```
+torch 2.x.x, CUDA 13.0
+GPU: NVIDIA GH200 480GB
+offload: OK (.../offload/__init__.py)
+opt_attention: OK (.../opt_attention/__init__.py)
+Installation test PASSED
+```
+
+If a check fails, the script stops with an error. `CUDA is not available`
+means PyTorch cannot see the GPU or driver. An `ImportError` means the
+corresponding extension was not built or installed.
 
 ## Usage
 
