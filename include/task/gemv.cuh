@@ -71,6 +71,11 @@ __device__ __forceinline__ void cp_reduce_async_bulk_tensor_2d_shared_to_gloabl 
 // DAK_SM_ARCH comes from the build, see config.cuh
 #if DAK_SM_ARCH == 90
 // GH200 (sm_90a): wgmma
+// wgmma atom is SM90_64x<TILE_N>x16_F16F16F16_SS, TILE_N is set by `make pyext arch=90a TILE_N=32` (see config.cuh)
+#define DAK_CAT_(a, b, c) a##b##c
+#define DAK_CAT(a, b, c) DAK_CAT_(a, b, c)
+#define DAK_WGMMA_ATOM_F16 DAK_CAT(SM90_64x, TILE_N, x16_F16F16F16_SS)
+
 __device__ __forceinline__ void task_wgmma_m64n256k16(half_t *a_buffer, half_t *b_buffer, half_t *sC,
                                                       const int TILE_ELEMS_A, const int TILE_ELEMS_B, const int NUM_TILES_K,
                                                       int tile_ik_base, int tile_ik_stride, 
@@ -82,15 +87,21 @@ __device__ __forceinline__ void task_wgmma_m64n256k16(half_t *a_buffer, half_t *
                                                      ){
     using namespace cute;
 
-    constexpr int MMA_M = 64, MMA_N = 8, MMA_K = 16;
+    // e.g. SM90_64x8x16_F16F16F16_SS<GMMA::Major::MN, GMMA::Major::K>
+    using Atom = DAK_WGMMA_ATOM_F16<GMMA::Major::MN, GMMA::Major::K>;
+    using AtomTrait = MMA_Traits<Atom>;
+    constexpr int MMA_M = shape<0>(typename AtomTrait::Shape_MNK{});
+    constexpr int MMA_N = shape<1>(typename AtomTrait::Shape_MNK{});
+    constexpr int MMA_K = shape<2>(typename AtomTrait::Shape_MNK{});
     // constexpr int numThreads = 128;
+
+    static_assert(TILE_M % MMA_M == 0, "TILE_M must be multiple of MMA_M");
+    static_assert(TILE_N % MMA_N == 0, "TILE_N must be multiple of MMA_N");
+    static_assert(TILE_K % MMA_K == 0, "TILE_K must be multiple of MMA_K");
 
     // Make a bigger "kernel" by repeating the atom
     auto tiled_mma = make_tiled_mma(
-        MMA_Atom<
-            // SM90_64x8x16_F16F16F16_SS<GMMA::Major::K, GMMA::Major::K>
-            SM90_64x8x16_F16F16F16_SS<GMMA::Major::MN, GMMA::Major::K>
-        >{},
+        MMA_Atom<Atom>{},
         make_layout(make_shape(Int<1>{}, Int<1>{}, Int<1>{})), // number of thread-parallel atoms
         make_tile(Int<TILE_M/MMA_M>{}, Int<TILE_N/MMA_N>{}, Int<TILE_K/MMA_K>{}) // number of wgmma instructions inside one warp group, MAY increase the useage of registers.
     );

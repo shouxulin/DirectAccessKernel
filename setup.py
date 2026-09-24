@@ -32,6 +32,15 @@ arch_flags = [
     f"-DDAK_SM_ARCH={arch.rstrip('a')}",
 ]
 
+# TILE_N (also selects the wgmma atom in include/task/gemv.cuh), passed in by `make pyext arch=90a TILE_N=<n>`, 90a only
+tile_n = os.environ.get("DAK_TILE_N")
+supported_tile_ns = ("8", "32", "128")
+if arch == "90a" and tile_n is not None:
+    if tile_n not in supported_tile_ns:
+        raise ValueError(f"Unsupported DAK_TILE_N '{tile_n}', expected one of: {', '.join(supported_tile_ns)}")
+    arch_flags.append(f"-DTILE_N={tile_n}")
+tile_n_stamp = os.path.join(this_dir, ".build_tile_n")  # written by the Makefile when TILE_N changes
+
 setup(
     name="llm-offload",
 
@@ -43,7 +52,8 @@ setup(
 
             sources=sources,
             extra_objects=[runtime_obj],
-            depends=[runtime_obj],  # rebuild when runtime.o is rebuilt, e.g. for another arch
+            # rebuild when runtime.o is rebuilt (e.g. for another arch) or TILE_N changes
+            depends=[runtime_obj] + ([tile_n_stamp] if os.path.exists(tile_n_stamp) else []),
             include_dirs=include_dirs,
             extra_compile_args={
                 "cxx": ["-O3", "-std=c++20", "-DNDEBUG"],

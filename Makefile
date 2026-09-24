@@ -17,6 +17,19 @@ CUDA_ARCH = -gencode arch=compute_$(arch),code=sm_$(arch) -DDAK_SM_ARCH=$(subst 
 # Rewritten only when arch changes, so objects built for another arch get rebuilt
 ARCH_STAMP := .build_arch
 
+# TILE_N for include/task/config.cuh, only used by `make pyext arch=90a`
+#   also selects the wgmma atom in include/task/gemv.cuh, e.g. `make pyext arch=90a TILE_N=32` uses SM90_64x32x16_F16F16F16_SS
+TILE_N ?= 8
+SUPPORTED_TILE_NS := 8 32 128
+ifeq ($(arch),90a)
+ifeq ($(filter $(TILE_N),$(SUPPORTED_TILE_NS)),)
+$(error Unsupported TILE_N '$(TILE_N)', expected one of: $(SUPPORTED_TILE_NS))
+endif
+PYEXT_ENV := DAK_TILE_N=$(TILE_N)
+endif
+# Rewritten only when TILE_N changes, setup.py lists it as a dependency so the extension gets rebuilt
+TILE_N_STAMP := .build_tile_n
+
 # Compiler flags
 # NVCC_FLAGS = -DNDEBUG -O3 -std=c++20 $(if $(profile),-DDAE_PROFILE) # --ptxas-options=--verbose
 
@@ -55,10 +68,13 @@ HEADERS = $(wildcard include/offload/*.cuh) $(wildcard include/task/*.cuh)
 # Clean build artifacts
 clean:
 # 	rm -rf $(APPS) $(TARGETS)
-	rm -rf $(TARGETS) $(ARCH_STAMP)
+	rm -rf $(TARGETS) $(ARCH_STAMP) $(TILE_N_STAMP)
 
 $(ARCH_STAMP): FORCE
 	@echo '$(arch)' | cmp -s - $@ || echo '$(arch)' > $@
+
+$(TILE_N_STAMP): FORCE
+	@echo '$(arch) $(TILE_N)' | cmp -s - $@ || echo '$(arch) $(TILE_N)' > $@
 
 %.o: src/%.cu $(HEADERS) $(ARCH_STAMP)
 	$(NVCC) $(CUDA_ARCH) $(NVCC_FLAGS) -Xcompiler -fPIC -c -o $@ $<
@@ -70,8 +86,8 @@ $(ARCH_STAMP): FORCE
 # run: $(BIN)
 # 	./$<
 
-# setup.py reads the arch from DAK_ARCH
-pyext: $(TARGETS)
-	DAK_ARCH=$(arch) pip install -e . --no-build-isolation
+# setup.py reads the arch from DAK_ARCH and, for 90a, TILE_N from DAK_TILE_N
+pyext: $(TARGETS) $(TILE_N_STAMP)
+	DAK_ARCH=$(arch) $(PYEXT_ENV) pip install -e . --no-build-isolation
 
 .PHONY: all clean run pyext FORCE

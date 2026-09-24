@@ -440,6 +440,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.attr("NUM_SMS") = NUM_SMS;
     m.attr("MAX_COPY_SMS") = MAX_COPY_SMS;
     m.attr("BUFFER_SLOTS") = BUFFER_SLOTS;
+    m.attr("TILE_N") = TILE_N;
 
     m.def("set_smem_size", &py_set_smem_size,
           "Set dynamic shared memory size for DAE2 kernel");
