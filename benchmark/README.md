@@ -1,7 +1,7 @@
 # Benchmark Guide
 
 This directory contains the benchmark entry points and scripts used to
-reproduce the main end-to-end results in the DAK paper.
+reproduce the main end-to-end results of SplitKernel.
 
 Run the commands below from the `benchmark/` directory after installing the
 root offload runtime and the `split_attention` extension.
@@ -55,7 +55,7 @@ bash script/llama/mix_bound_uniform.sh
 
 The current kernel configuration, including `TILE_SIZE`, `CHUNK_SIZE`, and
 `BUFFER_SLOTS`, is specialized for the GH200 and RTX 6000 platform and the batch-size
-settings used in the paper experiments, especially `bsz=8` and `bsz=512`.
+settings used in the evaluation, especially `bsz=8` and `bsz=512`.
 
 For other batch sizes or hardware platforms, the kernel configuration may need
 to be retuned. In particular, update the corresponding parameters in both:

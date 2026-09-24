@@ -1,13 +1,8 @@
-# DAK: Direct-Access-Enabled GPU Memory Offloading with Optimal Efficiency for LLM Inference
+# SplitKernel
 
-This repository contains the research code for the paper:
-
-**DAK: Direct-Access-Enabled GPU Memory Offloading with Optimal Efficiency for LLM Inference**  
-Paper: <https://arxiv.org/pdf/2604.26074>
-
-DAK is an end-to-end GPU memory offloading framework for large language model
+SplitKernel is an end-to-end GPU memory offloading framework for large language model
 inference. Instead of following the conventional prefetch-based design, where
-offloaded data is first moved back into local GPU HBM before computation, DAK
+offloaded data is first moved back into local GPU HBM before computation, SplitKernel
 enables the GPU to directly access offloaded memory and stream data into shared
 memory for kernel execution.
 
@@ -28,12 +23,9 @@ This introduces several inefficiencies:
 - underutilization of aggregate bandwidth across local and remote memory tiers;
 - read amplification when multiple consumers need overlapping data.
 
-DAK addresses these bottlenecks through direct-access offloading. The key idea
+SplitKernel addresses these bottlenecks through direct-access offloading. The key idea
 is to allow GPU kernels to fetch offloaded weights and KV cache blocks directly
 from the remote tier into GPU shared memory, avoiding unnecessary staging in HBM.
-The paper shows that this design can better aggregate local and remote memory
-bandwidth, and reports up to **3x** speedup on NVLink-C2C systems and **1.8x**
-speedup on PCIe systems over prefetch-based offloading baselines.
 
 ## Key Features
 
@@ -91,7 +83,7 @@ make pyext            # GH200 (sm_90a)
 Then install the split attention extension:
 
 ```bash
-cd split_attention
+cd opt_attention
 pip install -e .
 ```
 
@@ -155,35 +147,12 @@ python benchmark/benchmark_linear.py
 Shell wrappers and experiment configurations are also provided under
 `benchmark/script/`.
 
-## Evaluation
-
-The `eval/` directory contains notebooks for analyzing:
-
-- offloading-ratio selection;
-- offloading algorithm behavior;
-- ablation studies.
-
-These notebooks are intended to support the experimental analysis in the paper
-and may require generated benchmark outputs.
-
 ## Notes
 
 - This is research code and is optimized around the hardware/software
-  assumptions used in the paper.
+  assumptions of this implementation.
 - Some kernels rely on Hopper-specific features such as Tensor Memory
   Accelerator support.
 - For non-Hopper GPUs, the CUDA architecture flags and kernel assumptions may
   need to be adjusted.
 
-## Citation
-
-If you use this code or find the paper useful, please cite:
-
-```bibtex
-@article{lin2026dak,
-  title={DAK: Direct-Access-Enabled GPU Memory Offloading with Optimal Efficiency for LLM Inference},
-  author={Lin, Shouxu and Guo, Zhiyuan and Lin, Jiaxin},
-  journal={arXiv preprint arXiv:2604.26074},
-  year={2026}
-}
-```
