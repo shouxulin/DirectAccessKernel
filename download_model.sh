@@ -4,11 +4,12 @@
 set -euo pipefail
 
 HF_HOME=/home/huggingface
-MODELS=(facebook/opt-6.7b facebook/opt-30b)
-declare -A SIZE_GB=([facebook/opt-6.7b]=14 [facebook/opt-30b]=61)
+MODELS=(facebook/opt-6.7b facebook/opt-30b meta-llama/Llama-2-7b-hf)
+declare -A SIZE_GB=([facebook/opt-6.7b]=14 [facebook/opt-30b]=61 [meta-llama/Llama-2-7b-hf]=27)
 
 export HF_HOME
-mkdir -p "$HF_HOME"
+# /home is root-owned, so create the cache with sudo if needed and hand it to the current user.
+[[ -w $HF_HOME ]] || { sudo mkdir -p "$HF_HOME" && sudo chown "$(id -u):$(id -g)" "$HF_HOME"; }
 
 # Persist HF_HOME for new shells so the benchmarks load from this cache instead of re-downloading.
 sed -i '/^export HF_HOME=/d' ~/.bashrc
