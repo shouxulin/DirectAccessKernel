@@ -72,9 +72,11 @@ Hopper-class GPUs by default:
 - Python development environment with `pip`;
 - `transformers`, `numpy`, and other benchmark-time Python dependencies.
 
-The default build flags target `sm_90a`. If you are using a different GPU
-architecture, update the `-gencode` settings in `Makefile`, `setup.py`, and
-`split_attention/setup.py` accordingly.
+The main runtime builds for `sm_90a` (GH200) by default. Pass `arch=120a` to
+`make` to build for `sm_120a` (RTX PRO 6000) instead. This also selects the
+matching SM count, buffer slots, and MMA path in `include/task/config.cuh` and
+`include/task/gemv.cuh`. The `split_attention/setup.py` `-gencode` setting
+still has to be changed by hand.
 
 ## Installation
 
@@ -82,7 +84,8 @@ From the repository root directory, build and install the main offload runtime:
 
 ```bash
 bash setup.sh
-make pyext
+make pyext            # GH200 (sm_90a)
+# make pyext arch=120a  # RTX PRO 6000 (sm_120a)
 ```
 
 Then install the split attention extension:

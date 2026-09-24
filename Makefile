@@ -3,9 +3,19 @@
 # CUDA compiler
 NVCC = nvcc
 
-# CUDA architecture (adjust for your GPU)
-# SM80 for A100, SM89 for H100, SM90 for Hopper
-CUDA_ARCH = -gencode arch=compute_90a,code=sm_90a
+# CUDA architecture, pass on the command line, e.g. `make pyext arch=120a`
+#   90a  : GH200 (Hopper)
+#   120a : RTX PRO 6000 (Blackwell)
+# DAK_SM_ARCH selects the arch-specific code in include/task/config.cuh and include/task/gemv.cuh
+arch ?= 90a
+SUPPORTED_ARCHS := 90a 120a
+ifeq ($(filter $(arch),$(SUPPORTED_ARCHS)),)
+$(error Unsupported arch '$(arch)', expected one of: $(SUPPORTED_ARCHS))
+endif
+CUDA_ARCH = -gencode arch=compute_$(arch),code=sm_$(arch) -DDAK_SM_ARCH=$(subst a,,$(arch))
+
+# Rewritten only when arch changes, so objects built for another arch get rebuilt
+ARCH_STAMP := .build_arch
 
 # Compiler flags
 # NVCC_FLAGS = -DNDEBUG -O3 -std=c++20 $(if $(profile),-DDAE_PROFILE) # --ptxas-options=--verbose
@@ -45,19 +55,23 @@ HEADERS = $(wildcard include/offload/*.cuh) $(wildcard include/task/*.cuh)
 # Clean build artifacts
 clean:
 # 	rm -rf $(APPS) $(TARGETS)
-	rm -rf $(TARGETS)
+	rm -rf $(TARGETS) $(ARCH_STAMP)
 
-%.o: src/%.cu $(HEADERS)
+$(ARCH_STAMP): FORCE
+	@echo '$(arch)' | cmp -s - $@ || echo '$(arch)' > $@
+
+%.o: src/%.cu $(HEADERS) $(ARCH_STAMP)
 	$(NVCC) $(CUDA_ARCH) $(NVCC_FLAGS) -Xcompiler -fPIC -c -o $@ $<
 
 # Build the executable, this is wildcard rule for multiple targets
-%: app/%.cu $(TARGETS) $(HEADERS)
+%: app/%.cu $(TARGETS) $(HEADERS) $(ARCH_STAMP)
 	$(NVCC) $(CUDA_ARCH) $(NVCC_FLAGS) -o $@ $< $(TARGETS) $(LDFLAGS)
 
 # run: $(BIN)
 # 	./$<
 
+# setup.py reads the arch from DAK_ARCH
 pyext: $(TARGETS)
-	pip install -e . --no-build-isolation
+	DAK_ARCH=$(arch) pip install -e . --no-build-isolation
 
-.PHONY: all clean run
+.PHONY: all clean run pyext FORCE

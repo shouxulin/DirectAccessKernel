@@ -2,6 +2,11 @@
 
 import torch
 
+# Arch-dependent constants from include/task/config.cuh (set by `make arch=90a|120a`)
+NUM_SMS: int
+MAX_COPY_SMS: int
+BUFFER_SLOTS: int
+
 def print_device_name(device_id: int) -> None:
     """Print the name of the CUDA device with the given ID."""
     ...

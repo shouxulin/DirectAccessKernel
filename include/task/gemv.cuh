@@ -68,6 +68,9 @@ __device__ __forceinline__ void cp_reduce_async_bulk_tensor_2d_shared_to_gloabl 
 }
 
 
+// DAK_SM_ARCH comes from the build, see config.cuh
+#if DAK_SM_ARCH == 90
+// GH200 (sm_90a): wgmma
 __device__ __forceinline__ void task_wgmma_m64n256k16(half_t *a_buffer, half_t *b_buffer, half_t *sC,
                                                       const int TILE_ELEMS_A, const int TILE_ELEMS_B, const int NUM_TILES_K,
                                                       int tile_ik_base, int tile_ik_stride, 
@@ -152,102 +155,103 @@ __device__ __forceinline__ void task_wgmma_m64n256k16(half_t *a_buffer, half_t *
     cuda::ptx::fence_proxy_async();
 }
 
+#elif DAK_SM_ARCH == 120
+// RTX PRO 6000 (sm_120a): no wgmma, use SM80 mma.sync
+__device__ __forceinline__ void task_wgmma_m64n256k16(half_t *a_buffer, half_t *b_buffer, half_t *sC,
+                                                      const int TILE_ELEMS_A, const int TILE_ELEMS_B, const int NUM_TILES_K,
+                                                      int tile_ik_base, int tile_ik_stride, /* used to reduce: multiple sms per row*/
+                                                      int &nbuf, 
+                                                      cuda::barrier<cuda::thread_scope_block> filled[], cuda::barrier<cuda::thread_scope_block> drained[]
+#if RECORD_NUM_CHUNKS > 0
+                                                      ,unsigned long long chunk_times_end[], int &num_chunks_recorded
+#endif
+                                                     ){
+    using namespace cute;
+
+    // static_assert(TILE_N == 8, "Only support N=8 for now");
+
+    using Atom = SM80_16x8x16_F32F16F16F32_TN;
+    using AtomTrait = MMA_Traits<Atom>;
+    using data_t = typename AtomTrait::ValTypeA;
+    // using data_t = half_t;
+    using accum_t = typename AtomTrait::ValTypeC;
+
+    constexpr int MMA_M = shape<0>(typename AtomTrait::Shape_MNK{});
+    constexpr int MMA_N = shape<1>(typename AtomTrait::Shape_MNK{});
+    constexpr int MMA_K = shape<2>(typename AtomTrait::Shape_MNK{});
+    constexpr int numThreads = 32 * (TILE_M / MMA_M);
+
+    static_assert(TILE_M % MMA_M == 0, "TILE_M must be multiple of MMA_M");
+    static_assert(TILE_K % MMA_K == 0, "TILE_K must be multiple of MMA_K");
+    static_assert(numThreads == 128, "Only support a 128-thread compute group for now");
+
+    auto tiled_mma = make_tiled_mma(
+        MMA_Atom<Atom>{},
+        make_layout(make_shape(Int<TILE_M / MMA_M>{}, Int<1>{}, Int<1>{})), // atom replication
+        make_tile(Int<TILE_M>{}, Int<MMA_N>{}, Int<TILE_K>{}) // final target MNK
+    );
+
+    int tid = threadIdx.x;
+    auto thr_mma  = tiled_mma.get_slice(tid);
 
 
-// __device__ __forceinline__ void task_wgmma_m64n256k16(half_t *a_buffer, half_t *b_buffer, half_t *sC,
-//                                                       const int TILE_ELEMS_A, const int TILE_ELEMS_B, const int NUM_TILES_K,
-//                                                       int tile_ik_base, int tile_ik_stride, /* used to reduce: multiple sms per row*/
-//                                                       int &nbuf, 
-//                                                       cuda::barrier<cuda::thread_scope_block> filled[], cuda::barrier<cuda::thread_scope_block> drained[]
+    auto layout_sA = tile_to_shape(
+        GMMA::Layout_MN_SW128_Atom<data_t>{},
+        make_shape(Int<TILE_M>{}, Int<TILE_K>{}));
+    auto layout_sB = tile_to_shape(
+        GMMA::Layout_K_SW128_Atom<data_t>{},
+        make_shape(Int<MMA_N>{}, Int<TILE_K>{}));
+    auto layout_sC = tile_to_shape(
+        GMMA::Layout_MN_SW128_Atom<data_t>{},
+        make_shape(Int<TILE_M>{}, Int<MMA_N>{}));
+
+
+    auto t_dummyA = make_tensor(make_smem_ptr(static_cast<data_t*>(nullptr)), layout_sA);
+    auto t_dummyB = make_tensor(make_smem_ptr(static_cast<data_t*>(nullptr)), layout_sB);
+    auto t_dummyC = make_tensor(make_smem_ptr(static_cast<accum_t*>(nullptr)),
+        Layout<Shape<Int<TILE_M>, Int<MMA_N>>, Stride<Int<1>, Int<TILE_M>>>());
+
+    auto frag_A = thr_mma.partition_fragment_A(t_dummyA);
+    auto frag_B = thr_mma.partition_fragment_B(t_dummyB);
+    auto frag_C = thr_mma.partition_fragment_C(t_dummyC);
+
+    clear(frag_C);
+
+
+    for (int tile_ik = tile_ik_base; tile_ik < NUM_TILES_K ; tile_ik+= tile_ik_stride) {
+        int next_slot = nbuf % BUFFER_SLOTS;
+        auto token = cuda::device::barrier_arrive_tx(filled[next_slot], 1, 0);
+        filled[next_slot].wait(cuda::std::move(token));
 // #if RECORD_NUM_CHUNKS > 0
-//                                                       ,unsigned long long chunk_times_end[], int &num_chunks_recorded
+//         if (threadIdx.x==0 && num_chunks_recorded < RECORD_NUM_CHUNKS) {
+//             chunk_times_end[num_chunks_recorded++] = get_clock(true);
+//         }
 // #endif
-//                                                      ){
-//     using namespace cute;
-
-//     // static_assert(TILE_N == 8, "Only support N=8 for now");
-
-//     using Atom = SM80_16x8x16_F32F16F16F32_TN;
-//     using AtomTrait = MMA_Traits<Atom>;
-//     using data_t = typename AtomTrait::ValTypeA;
-//     // using data_t = half_t;
-//     using accum_t = typename AtomTrait::ValTypeC;
-
-//     constexpr int MMA_M = shape<0>(typename AtomTrait::Shape_MNK{});
-//     constexpr int MMA_N = shape<1>(typename AtomTrait::Shape_MNK{});
-//     constexpr int MMA_K = shape<2>(typename AtomTrait::Shape_MNK{});
-//     constexpr int numThreads = 32 * (TILE_M / MMA_M);
-
-//     static_assert(TILE_M % MMA_M == 0, "TILE_M must be multiple of MMA_M");
-//     static_assert(TILE_K % MMA_K == 0, "TILE_K must be multiple of MMA_K");
-//     static_assert(numThreads == 128, "Only support a 128-thread compute group for now");
-
-//     auto tiled_mma = make_tiled_mma(
-//         MMA_Atom<Atom>{},
-//         make_layout(make_shape(Int<TILE_M / MMA_M>{}, Int<1>{}, Int<1>{})), // atom replication
-//         make_tile(Int<TILE_M>{}, Int<MMA_N>{}, Int<TILE_K>{}) // final target MNK
-//     );
-
-//     int tid = threadIdx.x;
-//     auto thr_mma  = tiled_mma.get_slice(tid);
-
-
-//     auto layout_sA = tile_to_shape(
-//         GMMA::Layout_MN_SW128_Atom<data_t>{},
-//         make_shape(Int<TILE_M>{}, Int<TILE_K>{}));
-//     auto layout_sB = tile_to_shape(
-//         GMMA::Layout_K_SW128_Atom<data_t>{},
-//         make_shape(Int<MMA_N>{}, Int<TILE_K>{}));
-//     auto layout_sC = tile_to_shape(
-//         GMMA::Layout_MN_SW128_Atom<data_t>{},
-//         make_shape(Int<TILE_M>{}, Int<MMA_N>{}));
-
-
-//     auto t_dummyA = make_tensor(make_smem_ptr(static_cast<data_t*>(nullptr)), layout_sA);
-//     auto t_dummyB = make_tensor(make_smem_ptr(static_cast<data_t*>(nullptr)), layout_sB);
-//     auto t_dummyC = make_tensor(make_smem_ptr(static_cast<accum_t*>(nullptr)),
-//         Layout<Shape<Int<TILE_M>, Int<MMA_N>>, Stride<Int<1>, Int<TILE_M>>>());
-
-//     auto frag_A = thr_mma.partition_fragment_A(t_dummyA);
-//     auto frag_B = thr_mma.partition_fragment_B(t_dummyB);
-//     auto frag_C = thr_mma.partition_fragment_C(t_dummyC);
-
-//     clear(frag_C);
-
-
-//     for (int tile_ik = tile_ik_base; tile_ik < NUM_TILES_K ; tile_ik+= tile_ik_stride) {
-//         int next_slot = nbuf % BUFFER_SLOTS;
-//         auto token = cuda::device::barrier_arrive_tx(filled[next_slot], 1, 0);
-//         filled[next_slot].wait(cuda::std::move(token));
-// // #if RECORD_NUM_CHUNKS > 0
-// //         if (threadIdx.x==0 && num_chunks_recorded < RECORD_NUM_CHUNKS) {
-// //             chunk_times_end[num_chunks_recorded++] = get_clock(true);
-// //         }
-// // #endif
         
-//         data_t *sA = (data_t*)a_buffer + next_slot * TILE_ELEMS_A;
-//         data_t *sB = (data_t*)b_buffer + next_slot * TILE_ELEMS_B;
+        data_t *sA = (data_t*)a_buffer + next_slot * TILE_ELEMS_A;
+        data_t *sB = (data_t*)b_buffer + next_slot * TILE_ELEMS_B;
 
-//         auto t_sA = make_tensor(make_smem_ptr(sA), layout_sA);
-//         copy(thr_mma.partition_A(t_sA), frag_A);
+        auto t_sA = make_tensor(make_smem_ptr(sA), layout_sA);
+        copy(thr_mma.partition_A(t_sA), frag_A);
 
-//         auto t_sB = make_tensor(make_smem_ptr(sB), layout_sB);
-//         copy(thr_mma.partition_B(t_sB), frag_B);
+        auto t_sB = make_tensor(make_smem_ptr(sB), layout_sB);
+        copy(thr_mma.partition_B(t_sB), frag_B);
 
-//         // warpgroup_arrive();
-//         gemm(tiled_mma, frag_C, frag_A, frag_B, frag_C);       
-//         // warpgroup_commit_batch();
-//         // warpgroup_wait<0>();
-//         __sync_barrier<8, numThreads>();
+        // warpgroup_arrive();
+        gemm(tiled_mma, frag_C, frag_A, frag_B, frag_C);       
+        // warpgroup_commit_batch();
+        // warpgroup_wait<0>();
+        __sync_barrier<8, numThreads>();
 
-//         (void) drained[next_slot].arrive();
-//         nbuf++;
-//     }
+        (void) drained[next_slot].arrive();
+        nbuf++;
+    }
 
-//     auto t_sC = make_tensor(make_smem_ptr(sC), layout_sC);
-//     copy(frag_C, thr_mma.partition_C(t_sC));
-//     cuda::ptx::fence_proxy_async();
-// }
+    auto t_sC = make_tensor(make_smem_ptr(sC), layout_sC);
+    copy(frag_C, thr_mma.partition_C(t_sC));
+    cuda::ptx::fence_proxy_async();
+}
+#endif
 
 __device__ __forceinline__ void loop (const CUtensorMap *a_tensor_map, const CUtensorMap *b_tensor_map, const CUtensorMap *c_tensor_map, 
                                       int M, int N, int K,

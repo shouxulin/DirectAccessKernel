@@ -436,6 +436,11 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     //   config.attr("max_tmas") = numTmas;
     //   config.attr("max_bars") = numBars;
 
+    // arch-dependent constants from task/config.cuh, read by app/python/config.py
+    m.attr("NUM_SMS") = NUM_SMS;
+    m.attr("MAX_COPY_SMS") = MAX_COPY_SMS;
+    m.attr("BUFFER_SLOTS") = BUFFER_SLOTS;
+
     m.def("set_smem_size", &py_set_smem_size,
           "Set dynamic shared memory size for DAE2 kernel");
     m.def("build_tma_desc", &py_build_tma_desc,
