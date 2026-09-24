@@ -8,30 +8,44 @@ root offload runtime and the `split_attention` extension.
 
 ## Reproduce Paper Figures
 
-### Figure 8
-
-```bash
-./script/opt/mem_bound.sh
-```
-
-### Figure 9
-
-```bash
-./script/opt/mix_bound.sh
-./script/llama/mix_bound.sh
-```
-
 ### Figure 10
 
+On a GH200 GPU:
+
 ```bash
-./script/opt/mix_bound_uniform.sh
-./script/llama/mix_bound_uniform.sh
+bash script/opt/mem_bound.sh GH200 facebook/opt-30b
+bash script/opt/mem_bound.sh GH200 facebook/opt-6.7b
+```
+
+On an RTX 6000 GPU:
+
+```bash
+bash script/opt/mem_bound.sh RTX6000 facebook/opt-30b
+bash script/opt/mem_bound.sh RTX6000 facebook/opt-6.7b
+```
+
+### Figure 11
+
+On a GH200 GPU:
+
+```bash
+bash script/opt/mix_bound.sh
+bash script/llama/mix_bound.sh
+```
+
+### Figure 13 
+
+On a GH200 GPU:
+
+```bash
+bash script/opt/mix_bound_uniform.sh
+bash script/llama/mix_bound_uniform.sh
 ```
 
 ## Notes on Kernel Configuration
 
 The current kernel configuration, including `TILE_SIZE`, `CHUNK_SIZE`, and
-`BUFFER_SLOTS`, is specialized for the GH200 platform and the batch-size
+`BUFFER_SLOTS`, is specialized for the GH200 and RTX 6000 platform and the batch-size
 settings used in the paper experiments, especially `bsz=8` and `bsz=512`.
 
 For other batch sizes or hardware platforms, the kernel configuration may need
