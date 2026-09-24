@@ -33,6 +33,15 @@ bash script/opt/mix_bound.sh
 bash script/llama/mix_bound.sh
 ```
 
+
+### Figure 12
+
+On a GH200 GPU:
+
+```bash
+bash script/opt/vary_bsz_prompt_len.sh
+```
+
 ### Figure 13 
 
 On a GH200 GPU:
