@@ -13,15 +13,15 @@ root offload runtime and the `split_attention` extension.
 On a GH200 GPU:
 
 ```bash
-bash script/opt/mem_bound.sh GH200 facebook/opt-30b
-bash script/opt/mem_bound.sh GH200 facebook/opt-6.7b
+bash script/opt/mem_bound.sh GH200 facebook/opt-30b ./fig10.csv
+bash script/opt/mem_bound.sh GH200 facebook/opt-6.7b ./fig10.csv
 ```
 
 On an RTX 6000 GPU:
 
 ```bash
-bash script/opt/mem_bound.sh RTX6000 facebook/opt-30b
-bash script/opt/mem_bound.sh RTX6000 facebook/opt-6.7b
+bash script/opt/mem_bound.sh RTX6000 facebook/opt-30b ./fig10.csv
+bash script/opt/mem_bound.sh RTX6000 facebook/opt-6.7b ./fig10.csv
 ```
 
 ### Figure 11
@@ -29,8 +29,8 @@ bash script/opt/mem_bound.sh RTX6000 facebook/opt-6.7b
 On a GH200 GPU:
 
 ```bash
-bash script/opt/mix_bound.sh
-bash script/llama/mix_bound.sh
+bash script/opt/mix_bound.sh ./fig11.csv
+bash script/llama/mix_bound.sh ./fig11.csv
 ```
 
 
@@ -39,7 +39,7 @@ bash script/llama/mix_bound.sh
 On a GH200 GPU:
 
 ```bash
-bash script/opt/vary_bsz_prompt_len.sh
+bash script/opt/vary_bsz_prompt_len.sh ./fig12.csv
 ```
 
 ### Figure 13 
@@ -47,8 +47,8 @@ bash script/opt/vary_bsz_prompt_len.sh
 On a GH200 GPU:
 
 ```bash
-bash script/opt/mix_bound_uniform.sh
-bash script/llama/mix_bound_uniform.sh
+bash script/opt/mix_bound_uniform.sh ./fig13.csv
+bash script/llama/mix_bound_uniform.sh ./fig13.csv
 ```
 
 ## Notes on Kernel Configuration

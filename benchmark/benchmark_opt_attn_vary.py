@@ -493,10 +493,10 @@ def run(
 
     torch.cuda.synchronize()
     out_tokens = tokenizer.batch_decode(out_ids, skip_special_tokens=True)
-    print("\n[Samples] Generated text:")
-    for i in [0, len(out_tokens) - 1]:
-        print(f"{i}: {out_tokens[i]}")
-        print("-" * 70)
+    # print("\n[Samples] Generated text:")
+    # for i in [0, len(out_tokens) - 1]:
+    #     print(f"{i}: {out_tokens[i]}")
+    #     print("-" * 70)
 
     avg_latency = []
     for step in range(max_new_tokens - 1):
