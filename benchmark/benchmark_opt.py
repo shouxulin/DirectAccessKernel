@@ -7,6 +7,13 @@ import numpy as np
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer, OPTConfig
 from transformers.cache_utils import StaticCache
+from transformers.utils import logging as hf_logging
+from huggingface_hub.utils import logging as hub_logging
+
+# Silence HF load reports, "Loading weights" progress bar, and Hub token warnings
+hf_logging.set_verbosity_error()
+hf_logging.disable_progress_bar()
+hub_logging.set_verbosity_error()
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
@@ -87,12 +94,12 @@ bsz = 8
 horizontal_config["GH200"].update(
     {
         # {h_m, d_m, h_blocks, d_blocks, h_sms_per_row, d_sms_per_row}
-        (7168, 7168): (0, 0, 16, 112, 1, 1),
-        (7168, 28672): (0, 0, 16, 112, 1, 1),
-        (28672, 7168): (2048, 26624, 8, 104, 1, 1),
-        (4096, 4096): (320, 4096 - 320, 10, 120, 2, 2),
-        (4096, 16384): (320, 4096 - 320, 10, 120, 2, 2),
-        (16384, 4096): (0, 0, 8, 120, 1, 1),
+        (7168, 7168): (0, 0, 16, 112, 2, 1),
+        (7168, 28672): (0, 0, 16, 112, 2, 1),
+        (28672, 7168): (2048, 26624, 16, 104, 1, 1),
+        (4096, 4096): (128, 4096 - 128, 4, 128, 2, 2),
+        (4096, 16384): (128, 4096 - 128, 4, 128, 2, 2),
+        (16384, 4096): (512, 16384 - 512, 4, 124, 1, 1),
     }
 )
 # # bsz = 32
@@ -518,7 +525,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--drop_bias",
         action="store_true",
-        default=False,
+        default=True,
         help="Drop OPT linear bias in replaced custom linears.",
     )
     parser.add_argument(
